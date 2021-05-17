@@ -1,0 +1,296 @@
+## Läsa in data
+#  Läs in knime1 först
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (rt:ReTweet {Name:line.tweet_id, Text:line.tweet, RTUser:line.retweeted_user_id }) 
+merge (t:Tweet {Name:line.retweeted_id })
+merge (u:User  {Name:line.user_id, ScreenName:line.user_name})
+merge (ru:User {Name:line.retweeted_user_id})
+create (rt)-[:TweetedBy {Time:line.time}]->(u), (t)-[:TweetedBy {Time:line.time}]->(ru)
+
+#Läs filen igen och sätt relationen Tweet - ReTweet
+load csv with headers from "file:///c:/knime1.csv" as line
+match (a:ReTweet {Name:line.tweet_id}), (b:Tweet {Name:line.retweeted_id})
+create (a)-[:ReTweeted]->(b)
+
+#Läs filen igen och sätt relationen User -ReTweeted user
+load csv with headers from "file:///c:/knime1.csv" as line
+match (a:User {Name:line.user_id}), (b:User {Name:line.retweeted_user_id})
+create (a)-[:ReTweetedUser]->(b)
+
+#Läs in knime0
+load csv with headers from "file:///c:/knime0.csv" as line
+merge (u:User {Name:line.user_id, ScreenName: line.user_name })
+merge (t:Tweet {Name:line.tweet_id})
+create (t)-[:TweetedBy {Time:line.time}]->(u)
+--------------------------------------------
+#Läs in data Ny version
+load csv with headers from "file:///c:/knime0.csv" as line
+merge (u:User {Name:line.user_id, ScreenName: line.user_name })
+merge (t:Tweet {Name:line.tweet_id})
+create (t)-[:By {Time:line.time}]-> (u)
+
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (u:User {Name:line.user_id, ScreenName: line.user_name })
+merge (t:ReTweet {Name:line.tweet_id, Text:line.tweet})
+create (t)-[:By {Time:line.time}]->(u)
+
+load csv with headers from "file:///c:/knime1.csv" as line
+match (t:Tweet {Name: line.retweeted_id})
+match (rt:ReTweet {Name: line.tweet_id})
+merge (rt)-[:RT {Time:line.time}]-> (t)
+
+
+*Borde ha ett steg med en fil där alla usernames för retweted users finns
+
+transform="translate(0,0) scale(0.3)
+---------------------------------------------------------------------------------------------
+## Analysera/hitta 
+# Noder med många relationer (dvs user som retweetats mycket)(multigraphs)
+match (n)-[r1]->(m), (n)-[r2]-(m)
+where r1 <> r2
+return n, r1, r2, m
+
+# Hitta alla noder med relation till a    (alternativt (a)--(b))
+match (a)-[]-(b)                        
+where a.Name='920257722326564864'
+return distinct a, b
+
+#Hitta relaterade noder max 3 bort
+match (root {Name: '192609878'})-[*1..3]-(leaves) 
+RETURN root, leaves
+
+#Räkna antal relationer (kolla tabell)
+match (n:User)<-[r]-()
+return distinct n,  count(r) as cnt
+order by cnt desc
+
+#Räkna relationer
+MATCH ()-[r]->(n)
+WITH n, count(r) as rel_cnt
+WHERE rel_cnt > 1
+RETURN n, rel_cnt
+order by rel_cnt desc
+
+# Skapa subgraph
+MATCH (root {Name: '90871042'})-[*1..5]-(leaves)
+RETURN root, leaves
+
+//Finding 2nd neighbors of D:
+match (a)-[:TO*..2]-(b)
+where a.Name='D'
+return distinct a, b
+
+//Finding triangles:
+match (a)-[:TO]->(b)-[:TO]->(c)-[:TO]->(a)
+return distinct a, b, c
+
+//Finding the induced subgraph given a set of nodes:
+match (n)-[r:TO]-(m)
+where n.Name in ['A', 'B', 'C', 'D', 'E'] and m.Name in ['A', 'B', 'C', 'D', 'E']
+return n, r, m
+
+
+//Counting the number of edges
+match (n:MyNode)-[r]->()
+return count(r)
+
+
+
+
+
+
+------------------------------------------------------------------
+using periodic commit 200
+load csv with headers from "file:///c:/knime0.csv" as line
+with line.time as time, line.tweet_id as tweet_id, line.user_id as user_id, line.tweet as tweet, toInt(line.retweet as retweet), line.retweeted_id as retweeted_id, line.retweeted_user_id as retweeted_user_id, line.inreplyto as inreplyto, line.hashtags as hashtags
+where retweet = 1
+merge (t:TestTweet {Name:tweet_id, Text:tweet}) 
+merge (u:TestUser {Name:user_id })
+merge (t) - [:TestTweeted_by {Time:line.time}]->(u)
+where retweet = 0
+merge (t:Tweet {Name:tweet_id, Text:tweet}) 
+merge (u:User {Name:user_id })
+merge (t) - [:Tweeted_by {Time:line.time}]->(u)
+
+
+load csv with headers from "file:///c:/knime0.csv" as line
+with line.tweet_id as tweet_id, line.user_id as user_id, line.time as time, line.tweet as tweet, line.retweet as retweet 
+where retweet = '1'
+merge (rt:Tweet {Name:tweet_id, Text:tweet}) 
+merge (ru:User {Name:user_id })
+merge (rt) - [:Tweeted_by {Time:time}]->(ru)
+where retweet = '0'
+merge (t:Tweet {Name:tweet_id, Text:tweet}) 
+merge (u:User {Name:user_id })
+merge (t) - [:Tweeted_by {Time:time}]->(u)
+
+
+
+load csv with headers from "file:///c:/knime0.csv" as line
+with line.tweet_id as tweet_id, line.user_id as user_id, line.time as time, line.tweet as tweet, line.retweet as retweet 
+foreach (t IN tweet_id | merge (:Tweet {Name:tweet_id, Text:tweet}) | merge (:User {Name:user_id}))
+------------------------------------------
+##  Läs in knime1 först
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (rt:ReTweet {Name:line.tweet_id, Text:line.tweet, RTUser:line.retweeted_user_id }) 
+merge (t:Tweet {Name:line.retweeted_id })
+merge (u:User  {Name:line.user_id})
+merge (ru:User {Name:line.retweeted_user_id})
+create (rt)-[:TweetedBy {Time:line.time}]->(u), (t)-[:TweetedBy {Time:line.time}]->(ru)
+
+
+load csv with headers from "file:///c:/knime1.csv" as line
+match (a:ReTweet {Name:line.tweet_id}), (b:Tweet {Name:line.retweeted_id})
+create (a)-[:ReTweeted]->(b)
+
+
+load csv with headers from "file:///c:/knime1.csv" as line
+match (a:User {Name:line.user_id}), (b:User {Name:line.retweeted_user_id})
+create (a)-[:ReTweetedUser]->(b)
+
+
+
+
+load csv with headers from "file:///c:/knime1.csv" as line
+
+merge (:ReTweet {Name:line.tweet_id}) - [:Retweeted {Time:line.time}] - (:Tweet {Name:line.retweeted_id})
+
+
+
+
+merge (u:User {Name:line.user_id })
+merge (t:Tweet {Name:line.tweet_id, User:line.retweeted_user_id })
+merge (ru:User {Name:line.retweeted_user_id })
+merge (rt) - [:Retweeted {Time:line.time}]->(t)
+
+
+merge (ru) - [:Tweeted_by {Time:line.time}]->(u)
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------
+##Läs in orig tweets och users
+load csv with headers from "file:///c:/knime0.csv" as line
+merge (t:Tweet {Name:line.tweet_id, Text:line.tweet, User:line.user_id}) 
+on create set t.hashtags = line.hashtags
+on match set t.hashtags = line.hashtags
+merge (u:User {Name:line.user_id })
+merge (t) - [:Tweeted_by {Time:line.time}]->(u)
+
+##Läs in retweets and users
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (rt:ReTweet {Name:line.tweet_id, Text:line.tweet, User:line.user_id, RTUser:line.retweeted_user_id }) 
+on create set rt.hashtags = line.hashtags
+on match set rt.hashtags = line.hashtags
+merge (u:User {Name:line.user_id })
+merge (rt) - [:Tweeted_by {Time:line.time}]->(u)
+
+##Bygg relationer mellan
+load csv with headers from "file:///c:/knime1.csv" as line
+with line.tweet_id as tweet_id, line.user_id as user_id, line.time as time, line.tweet as tweet, line.retweet as retweet, line.retweeted_user_id as retweeted_user_id, line.retweeted_id as retweeted_id
+match (a:User),(b:User)
+where a.Name = user_id AND b.Name = retweeted_user_id
+create (a)-[:RtUser]->(b)
+
+
+load csv with headers from "file:///c:/knime1.csv" as line
+with line.tweet_id as tweet_id, line.user_id as user_id, line.time as time, line.tweet as tweet, line.retweet as retweet, line.retweeted_user_id as retweeted_user_id, line.retweeted_id as retweeted_id
+match (c:Tweet),(d:ReTweet)
+where c.Name = retweeted_id AND d.Name = tweet_id
+create (c)-[:RtTweet]->(d)
+
+
+
+match (u:User {Name:line.user_id}), (uu:User {Name:line.retweeted_user_id})
+merge (u)-[:RtUser]->(uu)
+match (t:ReTweet {Name:line.tweet_id}), (tt:Tweet {Name:line.retweeted_id})
+merge (t)-[:RtTweet]->(tt)
+
+
+merge (ru:User {Name:line.retweeted_user_id })
+merge (u) - [:ReTweetE] -> (ru)
+
+
+
+-------------------------------------------------------------------------------
+##Läs in samtliga twets och users först samt originalrelation
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (t:Tweet {Name:line.tweet_id }) 
+on create set t.hashtags = line.hashtags
+on match set t.hashtags = line.hashtags
+merge (u:User {Name:line.user_id })
+merge (t) - [:TweetedBy {Time:line.time}]->(u)
+
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (t:Tweet {Name:line.retweeted_id })
+merge (r:User {Name:line.retweeted_user_id })
+
+# läs in samtliga relationer från retweetfilen
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (:Tweet {Name:line.retweeted_id}) -[:TweetedBy]-> (:User {Name:line.retweeted_user_id})
+merge (:Tweet {Name:line.tweet_id}) -[:TweetedBy {Time:line.time}]-> (:User {Name:line.user_id})
+merge (:Tweet {Name:line.tweet_id}) -[:ReTweeted]-> (:Tweet {Name:line.retweeted_id})
+
+match (t:Tweet {Name:line.retweeted_id}), (u:User {Name:line.retweeted_user_id})
+merge (t)-[:TweetedBy]-> (u)
+
+
+--------------------------------------------------------
+##Läs in relationer
+load csv with headers from "file:///c:/knime1.csv" as line
+create (rt:Tweet {name:line.retweeted_id}), (t:Tweet {name:line.tweet_id}), (t)-[:Retweeted]->(rt)
+create (u:Tweet {name:line.retweeted_user_id}), (tt:Tweet {name:line.reetweeted_id}), (tt)-[:Tweeted_by]->(u)
+
+
+
+merge (t:Tweet {Name:line.retweeted_id })
+merge (ru:User {Name:line.retweeted_user_id })
+merge (ru:User {Name:line.retweeted_user_id })
+merge (rt) - [:Tweeted_by {Time:line.time}]->(u)
+merge (rt) - [:ReTweeted {Time:line.time}]->(t)
+merge (t) - [:Tweeted_by {Time:line.time}]->(ru)
+
+
+
+
+on create set t.retweeted = line.retweeted_id
+on match set t.retweeted = line.retweeted_id
+
+--------------------------------------------------------
+Läsa in orig tweets och users
+
+load csv with headers from "file:///c:/knime0.csv" as line
+merge (t:Tweet {Name:line.tweet_id, Text:line.tweet}) 
+on create set t.hashtags = line.hashtags
+on match set t.hashtags = line.hashtags
+merge (u:User {Name:line.user_id })
+merge (t) - [:Tweeted_by {Time:line.time}]->(u)
+
+
+
+
+Läsa in retweets
+
+load csv with headers from "file:///c:/knime1.csv" as line
+merge (rt:ReTweet {Name:line.tweet_id, Text:line.tweet}) 
+on create set rt.hashtags = line.hashtags
+on match set rt.hashtags = line.hashtags
+on create set rt.retweeted = line.retweeted_id
+on match set rt.retweeted = line.retweeted_id
+merge (t:Tweet {Name:line.retweeted_id })
+merge (u:User {Name:line.user_id })
+merge (ru:User {Name:line.retweeted_user_id })
+merge (rt) - [:Tweeted_by {Time:line.time}]->(u)
+merge (rt) - [:ReTweeted {Time:line.time}]->(t)
+merge (t) - [:Tweeted_by {Time:line.time}]->(ru)
+
+
+
